@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Face Clicker</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+<style>
+body{
+  margin:0;
+  font-family:'Orbitron', sans-serif;
+  color:white;
+  overflow:hidden;  
+  background:#020617;
+  transition: background 0.5s ease;
+}
+#score{position:absolute;top:15px;right:30px;font-size:28px;font-weight:bold;transition: color 0.3s;}
+#cps{position:absolute;top:55px;right:30px;font-size:18px;color:#0ff;}
+#shop{
+  position:absolute;
+  left:0;top:0;width:260px;height:100vh;background:#020617;border-right:2px solid #111;
+  padding:20px;overflow-y:auto;
+}
+#shop h2{letter-spacing:3px;}
+.item{
+  display:flex;align-items:center;margin-top:15px;background:#0f172a;padding:10px;border-radius:6px;
+  cursor:pointer;gap:10px;transition: transform 0.2s;flex-wrap:wrap;word-wrap: break-word;
+}
+.item img{width:40px;flex-shrink:0;}
+.item b, .item span{flex-shrink:1;}
+.item:hover{background:#1e293b;}
+#game{
+  position:absolute;left:260px;right:0;top:0;bottom:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+}
+#face-container{position:relative; display:inline-block;}
+#face{
+  width:240px;cursor:pointer;transition:transform .1s;border-radius:50%;
+  box-shadow:0 0 50px rgba(0,150,255,.4);z-index:1;
+}
+#face-glow{
+  position:absolute;top:-10px;left:-10px;width:260px;height:260px;border-radius:50%;
+  box-shadow:0 0 40px 10px rgba(0,150,255,0.7);pointer-events:none;animation: glow 2s infinite alternate;
+}
+@keyframes glow{0%{ box-shadow:0 0 30px 5px rgba(0,150,255,0.4);}100%{ box-shadow:0 0 60px 20px rgba(0,200,255,0.7);}}
+#face.clicked{animation:pop .25s;}
+.golden-face{position:absolute;width:120px;cursor:pointer;border-radius:50%;box-shadow:0 0 30px gold;animation:goldpop .25s;}
+.auto-clicker-icon{position:absolute;width:40px;border-radius:50%;pointer-events:none;}
+@keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.15)}100%{transform:scale(1)}}
+@keyframes goldpop{0%{transform:scale(0)}50%{transform:scale(1.3)}100%{transform:scale(1)}}
+@keyframes upgradepop{0%{transform:scale(1)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
+.particle{position:absolute;font-weight:bold;pointer-events:none;user-select:none;animation:particleMove 1s forwards;}
+@keyframes particleMove{0%{transform:translateY(0); opacity:1;}100%{transform:translateY(-50px); opacity:0;}}
+#switcher{margin-top:20px;font-size:28px;letter-spacing:4px;display:flex;align-items:center;gap:20px;}
+.arrow{cursor:pointer;font-size:30px;}
+#achievement{position:absolute;top:100px;left:50%;transform:translateX(-50%);
+  background:rgba(255,255,255,0.1);padding:10px 20px;border-radius:8px;font-weight:bold;
+  display:none;animation:achieve 1.5s forwards;}
+@keyframes achieve{0%{opacity:0; transform:translateY(-20px);}10%{opacity:1; transform:translateY(0);}90%{opacity:1; transform:translateY(0);}100%{opacity:0; transform:translateY(-20px);}}
+.item span{flex-shrink:1;word-wrap: break-word; max-width:100px; display:inline-block; text-overflow:ellipsis; overflow:hidden;}
+</style>
+</head>
+<body>
+
+<div id="shop"><h2>SHOP</h2></div>
+<div id="score">0 ⚡</div>
+<div id="cps">CPS: 0</div>
+
+<div id="game">
+  <div id="face-container">
+    <div id="face-glow"></div>
+    <img id="face" src="IMG_1943.jpeg">
+  </div>
+  <div id="switcher">
+    <div class="arrow" onclick="prevBg()">❮</div>
+    <div id="bgName">SPACE</div>
+    <div class="arrow" onclick="nextBg()">❯</div>
+  </div>
+</div>
+
+<div id="achievement"></div>
+<audio id="clickSound" src="https://www.soundjay.com/button/beep-07.wav"></audio>
+<audio id="goldSound" src="https://www.soundjay.com/button/button-10.wav"></audio>
+
+<script>
+// Game variables
+let score=0, power=1, auto=0;
+let autoClickers=[];
+
+// Upgrade definitions with valid icons
+let upgrades=[
+{name:"Double Clicks", baseCost:50, effect:()=>{power*=2}, img:"https://img.icons8.com/color/48/000000/double-tap.png"},
+{name:"Auto Clicker I", baseCost:500, effect:()=>{auto+=1; addAutoClickerIcon('https://img.icons8.com/color/48/000000/robot.png')}, img:"https://img.icons8.com/color/48/000000/robot.png"},
+{name:"Mega Tap", baseCost:2500, effect:()=>{power*=3}, img:"https://img.icons8.com/color/48/000000/hand-tap.png"},
+{name:"Auto Clicker II", baseCost:10000, effect:()=>{auto+=2; addAutoClickerIcon('https://img.icons8.com/color/48/000000/generator.png'); addAutoClickerIcon('https://img.icons8.com/color/48/000000/generator.png');}, img:"https://img.icons8.com/color/48/000000/generator.png"},
+{name:"Lightning Boost", baseCost:30000, effect:()=>{power*=5}, img:"https://img.icons8.com/color/48/000000/lightning-bolt.png"},
+{name:"Robot Helper", baseCost:100000, effect:()=>{auto+=5; for(let i=0;i<5;i++) addAutoClickerIcon('https://img.icons8.com/color/48/000000/robot.png')}, img:"https://img.icons8.com/color/48/000000/robot.png"},
+{name:"Quantum Multiplier", baseCost:500000, effect:()=>{power*=10}, img:"https://img.icons8.com/color/48/000000/multiply.png"},
+{name:"Nano Clicker", baseCost:1000000, effect:()=>{auto+=10; for(let i=0;i<10;i++) addAutoClickerIcon('https://img.icons8.com/color/48/000000/nano.png')}, img:"https://img.icons8.com/color/48/000000/nano.png"},
+{name:"Plasma Tap", baseCost:5000000, effect:()=>{power*=20}, img:"https://img.icons8.com/color/48/000000/plasma.png"},
+{name:"Energy Core", baseCost:10000000, effect:()=>{auto+=20; for(let i=0;i<20;i++) addAutoClickerIcon('https://img.icons8.com/color/48/000000/energy-core.png')}, img:"https://img.icons8.com/color/48/000000/energy-core.png"},
+{name:"Photon Booster", baseCost:25000000, effect:()=>{power*=50}, img:"https://img.icons8.com/color/48/000000/photon.png"},
+{name:"AI Assistant", baseCost:50000000, effect:()=>{auto+=50; for(let i=0;i<50;i++) addAutoClickerIcon('https://img.icons8.com/color/48/000000/artificial-intelligence.png')}, img:"https://img.icons8.com/color/48/000000/artificial-intelligence.png"},
+{name:"Hyper Tap", baseCost:100000000, effect:()=>{power*=100}, img:"https://img.icons8.com/color/48/000000/hyperlink.png"},
+{name:"Omega Generator", baseCost:500000000, effect:()=>{auto+=100; for(let i=0;i<100;i++) addAutoClickerIcon('https://img.icons8.com/color/48/000000/omega.png')}, img:"https://img.icons8.com/color/48/000000/omega.png"},
+{name:"Infinity Multiplier", baseCost:1000000000, effect:()=>{power*=500}, img:"https://img.icons8.com/color/48/000000/infinity.png"}
+];
+
+// Initialize cost and level safely
+upgrades.forEach(u=>{if(u.level===undefined) u.level=0; if(u.cost===undefined || isNaN(u.cost)) u.cost=u.baseCost;});
+
+// DOM refs
+const face=document.getElementById("face");
+const scoreText=document.getElementById("score");
+const cpsText=document.getElementById("cps");
+const shopDiv=document.getElementById("shop");
+const clickSound=document.getElementById("clickSound");
+const goldSound=document.getElementById("goldSound");
+const faceContainer=document.getElementById("face-container");
+
+// Format numbers
+function formatNumber(num){ 
+  if(num >= 1e9) return (num/1e9).toFixed(1)+'B';
+  if(num >= 1e6) return (num/1e6).toFixed(1)+'M';
+  if(num >= 1e3) return (num/1e3).toFixed(1)+'K';
+  return num.toLocaleString(); 
+}
+
+// Update UI
+function updateUI(){
+  scoreText.innerText = formatNumber(Math.floor(score)) + " ⚡";
+  cpsText.innerText = `CPS: ${(power+auto).toFixed(1)}`;
+  
+  shopDiv.innerHTML = "<h2>SHOP</h2>";
+  upgrades.forEach((u,i)=>{
+    const div = document.createElement("div");
+    div.className = "item";
+    div.onclick = ()=>buyUpgrade(i,div);
+    div.innerHTML = `<img src="${u.img}"><b>${u.name}</b> <span>(x${u.level})</span><br>
+                     Cost: <span style="white-space:nowrap; font-size:14px;">${formatNumber(u.cost)}</span>`;
+    shopDiv.appendChild(div);
+  });
+}
+
+// Buy upgrade
+function buyUpgrade(i,el){
+  const u=upgrades[i];
+  if(score>=u.cost){
+    score-=u.cost;
+    u.effect();
+    u.level++;
+    u.cost=Math.floor(u.baseCost*Math.pow(2.5,u.level));
+    el.style.animation="upgradepop 0.25s";
+    setTimeout(()=>el.style.animation="",250);
+  }
+  updateUI();
+}
+
+// Face click
+face.onclick=(e)=>{
+  score+=power;
+  face.classList.add("clicked");
+  clickSound.play();
+  setTimeout(()=>face.classList.remove("clicked"),200);
+  createParticle(e.clientX,e.clientY,`+${power}`);
+  updateUI();
+}
+
+// Particles
+function createParticle(x,y,text){
+  const p=document.createElement("div");
+  p.className="particle";
+  p.style.left=(x-10)+"px";
+  p.style.top=(y-20)+"px";
+  p.style.fontSize="24px";
+  p.style.color="gold";
+  p.innerText=text;
+  document.body.appendChild(p);
+  setTimeout(()=>p.remove(),1000);
+}
+
+// Auto-clicker icons
+function addAutoClickerIcon(url){
+  const icon=document.createElement("img");
+  icon.src=url;
+  icon.className="auto-clicker-icon";
+  faceContainer.appendChild(icon);
+  autoClickers.push({el:icon, angle:Math.random()*360});
+}
+function rotateAutoClickers(){
+  const radius=150;
+  autoClickers.forEach((ac,i)=>{
+    ac.angle+=1+i*0.1;
+    const rad=ac.angle*Math.PI/180;
+    ac.el.style.left=(120+radius*Math.cos(rad)-20)+"px";
+    ac.el.style.top=(120+radius*Math.sin(rad)-20)+"px";
+  });
+}
+
+// Auto increment
+setInterval(()=>{
+  score+=auto;
+  updateUI();
+  rotateAutoClickers();
+},1000);
+
+// Backgrounds
+const backgrounds=[{color:"#020617",name:"SPACE"},{color:"#0f172a",name:"NIGHT"},{color:"#1e293b",name:"STORM"}];
+let bgIndex=0;
+function nextBg(){ bgIndex++; if(bgIndex>=backgrounds.length) bgIndex=0; applyBg(); }
+function prevBg(){ bgIndex--; if(bgIndex<0) bgIndex=backgrounds.length-1; applyBg(); }
+function applyBg(){ document.body.style.background=backgrounds[bgIndex].color; document.getElementById("bgName").innerText=backgrounds[bgIndex].name; }
+applyBg();
+
+// Golden face
+function spawnGoldenFace(){
+  const goldFace=document.createElement("img");
+  goldFace.src="IMG_1943.jpeg";
+  goldFace.className="golden-face";
+  goldFace.style.top=Math.random()*(window.innerHeight-120)+"px";
+  goldFace.style.left=Math.random()*(window.innerWidth-120)+"px";
+  document.body.appendChild(goldFace);
+  goldSound.play();
+  goldFace.onclick=()=>{
+    const bonus=Math.floor(score*0.7);
+    score+=bonus;
+    scoreText.style.color="gold";
+    setTimeout(()=>scoreText.style.color="white",500);
+    createParticle(parseFloat(goldFace.style.left)+60,parseFloat(goldFace.style.top)+60,`+${bonus}`);
+    goldFace.remove();
+    updateUI();
+  }
+  setTimeout(()=>{if(goldFace.parentElement) goldFace.remove();},5000);
+}
+setInterval(()=>{if(Math.random()<0.3) spawnGoldenFace();},15000);
+
+// Save/load
+function saveGame(){localStorage.setItem("faceClicker",JSON.stringify({score,power,auto,upgrades}));}
+function loadGame(){
+  const data=JSON.parse(localStorage.getItem("faceClicker"));
+  if(data){
+    score=data.score||0;
+    power=data.power||1;
+    auto=data.auto||0;
+    upgrades.forEach((u,i)=>{
+      u.cost=(data.upgrades[i] && data.upgrades[i].cost)?data.upgrades[i].cost:u.baseCost;
+      u.level=(data.upgrades[i] && data.upgrades[i].level)?data.upgrades[i].level:0;
+    });
+  }
+}
+loadGame();
+setInterval(saveGame,5000);
+
+updateUI();
+</script>
+</body>
+</html>
